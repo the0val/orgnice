@@ -15,16 +15,16 @@ type User struct {
 
 // Task is a task stored in the database
 type Task struct {
-	id      int
-	name    string
-	project string
-	done    bool
+	ID      int
+	Name    string
+	Project string
+	Done    bool
 }
 
 // Project is a project stored in the databas
 type Project struct {
-	id   int
-	name string
+	ID   int
+	Name string
 }
 
 // InitDb will create a database at path if it doesn't exist.
@@ -77,7 +77,7 @@ func (db *User) NewTask(name string, projectID int) (Task, error) {
 	}
 	taskID, _ := res.LastInsertId()
 
-	return Task{id: int(taskID), name: name, project: p.name}, tx.Commit()
+	return Task{ID: int(taskID), Name: name, Project: p.Name}, tx.Commit()
 }
 
 // SearchProjects searches the database for projects with name that
@@ -92,7 +92,7 @@ func (db *User) SearchProjects(name string) ([]Project, error) {
 	out := make([]Project, 0)
 	for rows.Next() {
 		var p Project
-		if err := rows.Scan(&p.id, p.name); err != nil {
+		if err := rows.Scan(&p.ID, p.Name); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -105,7 +105,7 @@ func (db *User) SearchProjects(name string) ([]Project, error) {
 func (db *User) ProjectFromID(ID int) (Project, error) {
 	row := db.QueryRow("SELECT id, name FROM projects WHERE id=?", ID)
 	out := Project{}
-	if err := row.Scan(&out.id, &out.name); err != nil {
+	if err := row.Scan(&out.ID, &out.Name); err != nil {
 		return Project{}, err
 	}
 	return out, nil
@@ -117,15 +117,15 @@ func (db *User) TaskFromID(ID int) (Task, error) {
 	row := db.QueryRow("SELECT id, name, project, done FROM tasks WHERE id=?", ID)
 	out := Task{}
 	var doneInt, projectID int
-	if err := row.Scan(&out.id, &out.name, &projectID, &doneInt); err != nil {
+	if err := row.Scan(&out.ID, &out.Name, &projectID, &doneInt); err != nil {
 		return Task{}, err
 	}
 	project, _ := db.ProjectFromID(projectID)
-	out.project = project.name
+	out.Project = project.Name
 	if doneInt == 0 {
-		out.done = false
+		out.Done = false
 	} else {
-		out.done = true
+		out.Done = true
 	}
 	return out, nil
 }
@@ -145,13 +145,13 @@ func (db *User) TasksInProject(projectID int) ([]Task, error) {
 	for rows.Next() {
 		var task Task
 		var doneInt int
-		if err := rows.Scan(&task.id, &task.name, &doneInt); err != nil {
+		if err := rows.Scan(&task.ID, &task.Name, &doneInt); err != nil {
 			return []Task{}, err
 		}
 		if doneInt == 0 {
-			task.done = false
+			task.Done = false
 		} else {
-			task.done = true
+			task.Done = true
 		}
 		out = append(out, task)
 	}
