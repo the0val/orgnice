@@ -30,12 +30,20 @@ type Project struct {
 // InitDb will create a database at path if it doesn't exist.
 func InitDb(path string) (User, error) {
 	db := User{}
+	// If the database doesn't exist, should create tables
+	// after opening the database.
+	createTables := false
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		createTables = true
+	}
+
 	var err error
 	db.DB, err = sql.Open("sqlite3", path)
 	if err != nil {
 		return db, err
 	}
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+
+	if createTables {
 		db.createTables()
 	}
 
@@ -120,13 +128,7 @@ func (db *User) TaskFromID(ID int) (Task, error) {
 	if err := row.Scan(&out.ID, &out.Name, &projectID, &doneInt); err != nil {
 		return Task{}, err
 	}
-	project, _ := db.ProjectFromID(projectID)
-	out.Project = project.Name
-	if doneInt == 0 {
-		out.Done = false
-	} else {
-		out.Done = true
-	}
+	out.interpretDatabase(db, doneInt, projectID)
 	return out, nil
 }
 
@@ -148,16 +150,14 @@ func (db *User) TasksInProject(projectID int) ([]Task, error) {
 		if err := rows.Scan(&task.ID, &task.Name, &doneInt); err != nil {
 			return []Task{}, err
 		}
-		if doneInt == 0 {
-			task.Done = false
-		} else {
-			task.Done = true
-		}
+		task.interpretDatabase(db, doneInt, projectID)
 		out = append(out, task)
 	}
 	return out, nil
 }
 
+// createTables should be called whenever a new user database
+// is created.
 func (db *User) createTables() error {
 	sqlStmt := `CREATE TABLE tasks (
 		id INTEGER PRIMARY KEY,
@@ -182,4 +182,17 @@ func (db *User) createTables() error {
 	db.Exec("INSERT INTO projects (id, name) VALUES (0, 'Inbox')")
 
 	return nil
+}
+
+// intepretDatabase takes fields from the tasks database table
+// and sets the corresponding feilds in task
+func (task *Task) interpretDatabase(db *User, doneInt, projectID int) {
+	project, _ := db.ProjectFromID(projectID)
+	task.Project = project.Name
+	if doneInt == 0 {
+		task.Done = false
+	} else {
+		task.Done = true
+	}
+
 }
