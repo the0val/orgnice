@@ -49,6 +49,7 @@ func TestInitDb(t *testing.T) {
 func TestUseDatabase(t *testing.T) {
 	// TODO custom init function for tests
 	user, _ := InitDb("test.db")
+	defer os.Remove("test.db")
 
 	if _, err := user.SearchProjects(""); err != nil {
 		fmt.Println("Should return all entries when searching with empty string")
