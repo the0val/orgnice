@@ -46,7 +46,7 @@ func TestInitDb(t *testing.T) {
 	os.RemoveAll(testDir)
 }
 
-func TestUseDatabase(t *testing.T) {
+func TestUseProjects(t *testing.T) {
 	// TODO custom init function for tests
 	user, _ := InitDb("test.db")
 	defer os.Remove("test.db")
@@ -69,5 +69,42 @@ func TestUseDatabase(t *testing.T) {
 	if res, _ := user.ProjectFromID(0); res.Name != "Inbox" {
 		fmt.Println("Should find Inbox at ID 0")
 		t.Fail()
+	}
+
+	user.NewProject("Project 2")
+	if res, _ := user.SearchProjects(""); len(res) != 2 {
+		fmt.Println("Should find two projects")
+		t.Fail()
+	}
+}
+
+func TestUseTasks(t *testing.T) {
+	// TODO custom init function for tests
+	user, _ := InitDb("test.db")
+	defer os.Remove("test.db")
+
+	if res, err := user.AllTasks(); err != nil || len(res) != 0 {
+		fmt.Println("Should find 0 tasks and give non-nil error code")
+		fmt.Println(err.Error())
+		t.Fail()
+	}
+
+	for i := 0; i < 10; i++ {
+		_, err := user.NewTask("Task"+string(i), 0)
+		if err != nil {
+			fmt.Println("Should add task")
+			t.FailNow()
+		}
+	}
+	res, _ := user.AllTasks()
+	if len(res) != 10 {
+		fmt.Println("Should find 10 tastks")
+		t.Fail()
+	}
+	for _, task := range res {
+		if newTask, _ := user.TaskFromID(task.ID); newTask != task {
+			fmt.Println("Should find tasks with TaskFromID")
+			t.Fail()
+		}
 	}
 }

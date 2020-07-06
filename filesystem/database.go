@@ -73,28 +73,6 @@ func (user *User) NewProject(name string) error {
 	return tx.Commit()
 }
 
-// NewTask creates a new task with the given projectID.
-// Use projcetID 0 to put it in the default location Inbox.
-func (user *User) NewTask(name string, projectID int) (Task, error) {
-	p, err := user.ProjectFromID(projectID)
-	if err != nil {
-		return Task{}, err
-	}
-
-	tx, err := user.db.Begin()
-	if err != nil {
-		return Task{}, err
-	}
-
-	res, err := tx.Exec("INSERT INTO tasks (name, project) VALUES (?, ?)", name, projectID)
-	if err != nil {
-		return Task{}, err
-	}
-	taskID, _ := res.LastInsertId()
-
-	return Task{ID: int(taskID), Name: name, Project: p.Name}, tx.Commit()
-}
-
 // SearchProjects searches the database for projects with name that
 // contains the given string (case-insensitive).
 func (user *User) SearchProjects(name string) ([]Project, error) {
@@ -126,6 +104,28 @@ func (user *User) ProjectFromID(ID int) (Project, error) {
 		return Project{}, err
 	}
 	return out, nil
+}
+
+// NewTask creates a new task with the given projectID.
+// Use projcetID 0 to put it in the default location Inbox.
+func (user *User) NewTask(name string, projectID int) (Task, error) {
+	p, err := user.ProjectFromID(projectID)
+	if err != nil {
+		return Task{}, err
+	}
+
+	tx, err := user.db.Begin()
+	if err != nil {
+		return Task{}, err
+	}
+
+	res, err := tx.Exec("INSERT INTO tasks (name, project) VALUES (?, ?)", name, projectID)
+	if err != nil {
+		return Task{}, err
+	}
+	taskID, _ := res.LastInsertId()
+
+	return Task{ID: int(taskID), Name: name, Project: p.Name}, tx.Commit()
 }
 
 // TaskFromID returns a task from the database with the given ID
@@ -165,6 +165,34 @@ func (user *User) TasksInProject(projectID int) ([]Task, error) {
 	return out, nil
 }
 
+// AllTasks returns a list of all tasks belonging to user
+func (user *User) AllTasks() ([]Task, error) {
+	rows, err := user.db.Query("SELECT id, name, done, project FROM tasks")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Task, 0)
+	for rows.Next() {
+		var task Task
+		var doneInt int
+		var projectID int
+		if err := rows.Scan(&task.ID, &task.Name, &doneInt, &projectID); err != nil {
+			return []Task{}, err
+		}
+		task.interpretDatabase(user, doneInt, projectID)
+		out = append(out, task)
+	}
+	return out, nil
+}
+
+// StoreTaskNEI takes a task as parameter and stores it in the database.
+// If a task with the same ID already exists it will update that instead.
+// For creating a new task, NewTask is preferred.
+func (user *User) StoreTaskNEI(task Task) error {
+	// TODO
+	return nil
+}
+
 // createTables should be called whenever a new user database
 // is created.
 func (user *User) createTables() error {
@@ -172,7 +200,7 @@ func (user *User) createTables() error {
 		id INTEGER PRIMARY KEY,
 		name STRING NOT NULL,
 		project INTEGER DEFAULT 0,
-		done INTEGER
+		done INTEGER DEFAULT 0
 	)`
 	_, err := user.db.Exec(sqlStmt)
 	if err != nil {
@@ -203,5 +231,4 @@ func (task *Task) interpretDatabase(db *User, doneInt, projectID int) {
 	} else {
 		task.Done = true
 	}
-
 }
