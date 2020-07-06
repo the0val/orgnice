@@ -2,7 +2,9 @@ package filesystem
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
+	"strings"
 
 	// Runs to give a database handler
 	_ "github.com/mattn/go-sqlite3"
@@ -29,7 +31,7 @@ type Project struct {
 
 // InitDb will create a database at path if it doesn't exist.
 func InitDb(path string) (User, error) {
-	db := User{}
+	user := User{}
 	// If the database doesn't exist, should create tables
 	// after opening the database.
 	createTables := false
@@ -38,22 +40,27 @@ func InitDb(path string) (User, error) {
 	}
 
 	var err error
-	db.DB, err = sql.Open("sqlite3", path)
+	user.DB, err = sql.Open("sqlite3", path)
 	if err != nil {
-		return db, err
+		return user, err
+	}
+	if p := user.Ping(); p != nil {
+		return user, p
 	}
 
 	if createTables {
-		db.createTables()
+		if err := user.createTables(); err != nil {
+			return user, err
+		}
 	}
 
-	return db, nil
+	return user, nil
 }
 
 // NewProject creates a new project with given name
 // in the database db.
-func (db *User) NewProject(name string) error {
-	tx, err := db.Begin()
+func (user *User) NewProject(name string) error {
+	tx, err := user.Begin()
 	if err != nil {
 		return err
 	}
@@ -68,13 +75,13 @@ func (db *User) NewProject(name string) error {
 
 // NewTask creates a new task with the given projectID.
 // Use projcetID 0 to put it in the default location Inbox.
-func (db *User) NewTask(name string, projectID int) (Task, error) {
-	p, err := db.ProjectFromID(projectID)
+func (user *User) NewTask(name string, projectID int) (Task, error) {
+	p, err := user.ProjectFromID(projectID)
 	if err != nil {
 		return Task{}, err
 	}
 
-	tx, err := db.Begin()
+	tx, err := user.Begin()
 	if err != nil {
 		return Task{}, err
 	}
@@ -90,9 +97,8 @@ func (db *User) NewTask(name string, projectID int) (Task, error) {
 
 // SearchProjects searches the database for projects with name that
 // contains the given string (case-insensitive).
-func (db *User) SearchProjects(name string) ([]Project, error) {
-	// https://pkg.go.dev/database/sql?tab=doc#example-DB.Query-MultipleResultSets
-	rows, err := db.Query("SELECT id, name FROM projects WHERE name LIKE '%?%", name)
+func (user *User) SearchProjects(name string) ([]Project, error) {
+	rows, err := user.Query("SELECT id, name FROM projects")
 	if err != nil {
 		return nil, err
 	}
@@ -100,18 +106,21 @@ func (db *User) SearchProjects(name string) ([]Project, error) {
 	out := make([]Project, 0)
 	for rows.Next() {
 		var p Project
-		if err := rows.Scan(&p.ID, p.Name); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name); err != nil {
+			fmt.Println(err)
 			return nil, err
 		}
-		out = append(out, p)
+		if strings.Contains(p.Name, name) {
+			out = append(out, p)
+		}
 	}
 	return out, nil
 }
 
 // ProjectFromID returns a project from the database with the given ID
 // If no match found error will be sql.ErrNoRows
-func (db *User) ProjectFromID(ID int) (Project, error) {
-	row := db.QueryRow("SELECT id, name FROM projects WHERE id=?", ID)
+func (user *User) ProjectFromID(ID int) (Project, error) {
+	row := user.QueryRow("SELECT id, name FROM projects WHERE id=?", ID)
 	out := Project{}
 	if err := row.Scan(&out.ID, &out.Name); err != nil {
 		return Project{}, err
@@ -121,23 +130,23 @@ func (db *User) ProjectFromID(ID int) (Project, error) {
 
 // TaskFromID returns a task from the database with the given ID
 // If no match found error will be sql.ErrNoRows
-func (db *User) TaskFromID(ID int) (Task, error) {
-	row := db.QueryRow("SELECT id, name, project, done FROM tasks WHERE id=?", ID)
+func (user *User) TaskFromID(ID int) (Task, error) {
+	row := user.QueryRow("SELECT id, name, project, done FROM tasks WHERE id=?", ID)
 	out := Task{}
 	var doneInt, projectID int
 	if err := row.Scan(&out.ID, &out.Name, &projectID, &doneInt); err != nil {
 		return Task{}, err
 	}
-	out.interpretDatabase(db, doneInt, projectID)
+	out.interpretDatabase(user, doneInt, projectID)
 	return out, nil
 }
 
 // TasksInProject returns a list of all tasks in project
-func (db *User) TasksInProject(projectID int) ([]Task, error) {
-	if _, err := db.ProjectFromID(projectID); err != nil {
+func (user *User) TasksInProject(projectID int) ([]Task, error) {
+	if _, err := user.ProjectFromID(projectID); err != nil {
 		return []Task{}, err
 	}
-	rows, err := db.Query("SELECT id, name, done FROM tasks WHERE project=?", projectID)
+	rows, err := user.Query("SELECT id, name, done FROM tasks WHERE project=?", projectID)
 	if err != nil {
 		return []Task{}, err
 	}
@@ -150,7 +159,7 @@ func (db *User) TasksInProject(projectID int) ([]Task, error) {
 		if err := rows.Scan(&task.ID, &task.Name, &doneInt); err != nil {
 			return []Task{}, err
 		}
-		task.interpretDatabase(db, doneInt, projectID)
+		task.interpretDatabase(user, doneInt, projectID)
 		out = append(out, task)
 	}
 	return out, nil
@@ -158,14 +167,14 @@ func (db *User) TasksInProject(projectID int) ([]Task, error) {
 
 // createTables should be called whenever a new user database
 // is created.
-func (db *User) createTables() error {
+func (user *User) createTables() error {
 	sqlStmt := `CREATE TABLE tasks (
 		id INTEGER PRIMARY KEY,
 		name STRING NOT NULL,
 		project INTEGER DEFAULT 0,
 		done INTEGER
 	)`
-	_, err := db.Exec(sqlStmt)
+	_, err := user.Exec(sqlStmt)
 	if err != nil {
 		return err
 	}
@@ -174,12 +183,12 @@ func (db *User) createTables() error {
 		id INTEGER PRIMARY KEY,
 		name STRING NOT NULL
 	)`
-	_, err = db.Exec(sqlStmt)
+	_, err = user.Exec(sqlStmt)
 	if err != nil {
 		return err
 	}
 	// Create project Inbox, used as default for tasks
-	db.Exec("INSERT INTO projects (id, name) VALUES (0, 'Inbox')")
+	user.Exec("INSERT INTO projects (id, name) VALUES (0, 'Inbox')")
 
 	return nil
 }
