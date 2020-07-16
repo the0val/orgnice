@@ -19,7 +19,7 @@ type User struct {
 type Task struct {
 	ID      int
 	Name    string
-	Project string
+	Project Project
 	Done    bool
 }
 
@@ -114,18 +114,13 @@ func (user *User) NewTask(name string, projectID int) (Task, error) {
 		return Task{}, err
 	}
 
-	tx, err := user.db.Begin()
-	if err != nil {
-		return Task{}, err
-	}
-
-	res, err := tx.Exec("INSERT INTO tasks (name, project) VALUES (?, ?)", name, projectID)
+	res, err := user.db.Exec("INSERT INTO tasks (name, project) VALUES (?, ?)", name, projectID)
 	if err != nil {
 		return Task{}, err
 	}
 	taskID, _ := res.LastInsertId()
 
-	return Task{ID: int(taskID), Name: name, Project: p.Name}, tx.Commit()
+	return Task{ID: int(taskID), Name: name, Project: p}, nil
 }
 
 // TaskFromID returns a task from the database with the given ID
@@ -185,11 +180,21 @@ func (user *User) AllTasks() ([]Task, error) {
 	return out, nil
 }
 
-// StoreTaskNEI takes a task as parameter and stores it in the database.
+// StoreTask takes a task as parameter and stores it in the database.
 // If a task with the same ID already exists it will update that instead.
 // For creating a new task, NewTask is preferred.
-func (user *User) StoreTaskNEI(task Task) error {
-	// TODO
+func (user *User) StoreTask(task Task) error {
+	if _, err := user.TaskFromID(task.ID); err != nil {
+		_, err := user.db.Exec("INSERT INTO tasks (id, name, project) VALUES (?, ?, ?)", task.ID, task.Name, task.Project.ID)
+		if err != nil {
+			return err
+		}
+	} else {
+		var doneInt, projectID int
+		user.db.Exec("UPDATE tasks SET name = ?, project = ?, done = ? WHERE id = ?", task.Name, projectID, doneInt, task.ID)
+		task.Done = intToBool(doneInt)
+		task.Project, _ = user.ProjectFromID(projectID)
+	}
 	return nil
 }
 
@@ -225,10 +230,24 @@ func (user *User) createTables() error {
 // and sets the corresponding feilds in task
 func (task *Task) interpretDatabase(db *User, doneInt, projectID int) {
 	project, _ := db.ProjectFromID(projectID)
-	task.Project = project.Name
-	if doneInt == 0 {
-		task.Done = false
-	} else {
-		task.Done = true
+	task.Project = project
+	task.Done = intToBool(doneInt)
+}
+
+// intToBool takes an int as input and return false
+// if the int is 0. Otherwise true.
+func intToBool(i int) bool {
+	if i == 0 {
+		return false
 	}
+	return true
+}
+
+// boolToInt takes a bool and returns 1 if it's true,
+// 0 if it's false.
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
