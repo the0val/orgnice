@@ -190,10 +190,9 @@ func (user *User) StoreTask(task Task) error {
 			return err
 		}
 	} else {
-		var doneInt, projectID int
+		doneInt := boolToInt(task.Done)
+		projectID := task.Project.ID
 		user.db.Exec("UPDATE tasks SET name = ?, project = ?, done = ? WHERE id = ?", task.Name, projectID, doneInt, task.ID)
-		task.Done = intToBool(doneInt)
-		task.Project, _ = user.ProjectFromID(projectID)
 	}
 	return nil
 }
