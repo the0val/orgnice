@@ -47,7 +47,6 @@ func TestInitDb(t *testing.T) {
 }
 
 func TestUseProjects(t *testing.T) {
-	// TODO custom init function for tests
 	user, _ := InitDb("test.db")
 	defer os.Remove("test.db")
 
@@ -79,7 +78,6 @@ func TestUseProjects(t *testing.T) {
 }
 
 func TestUseTasks(t *testing.T) {
-	// TODO custom init function for tests
 	user, _ := InitDb("test.db")
 	defer os.Remove("test.db")
 
@@ -106,5 +104,25 @@ func TestUseTasks(t *testing.T) {
 			fmt.Println("Should find tasks with TaskFromID")
 			t.Fail()
 		}
+	}
+
+	task, _ := user.NewTask("Name1", 0)
+	task.Name = "New name"
+	task.Done = true
+	err := user.StoreTask(task)
+	if err != nil {
+		fmt.Println(err.Error())
+		t.Fail()
+	}
+	updatedTask, _ := user.TaskFromID(task.ID)
+	if updatedTask != task {
+		fmt.Println("Should update task")
+		t.Fail()
+	}
+
+	err = user.StoreTask(Task{task.ID + 1, "Stored task", task.Project, false})
+	if err != nil {
+		fmt.Println("Should create new task with StoreTask")
+		t.Fail()
 	}
 }
