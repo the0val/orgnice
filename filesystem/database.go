@@ -23,7 +23,7 @@ type Task struct {
 	Done    bool
 }
 
-// Project is a project stored in the databas
+// Project is a project stored in the database
 type Project struct {
 	ID   int
 	Name string
@@ -92,6 +92,7 @@ func (user *User) SearchProjects(name string) ([]Project, error) {
 			out = append(out, p)
 		}
 	}
+
 	return out, nil
 }
 
@@ -162,7 +163,7 @@ func (user *User) TasksInProject(projectID int) ([]Task, error) {
 
 // AllTasks returns a list of all tasks belonging to user
 func (user *User) AllTasks() ([]Task, error) {
-	rows, err := user.db.Query("SELECT id, name, done, project FROM tasks")
+	rows, err := user.db.Query("SELECT id, name, done, project FROM tasks ORDER BY id")
 	if err != nil {
 		return nil, err
 	}
