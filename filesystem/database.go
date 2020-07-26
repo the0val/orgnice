@@ -44,8 +44,8 @@ func InitDb(path string) (User, error) {
 	if err != nil {
 		return user, err
 	}
-	if p := user.db.Ping(); p != nil {
-		return user, p
+	if e := user.db.Ping(); e != nil {
+		return user, e
 	}
 
 	if createTables {

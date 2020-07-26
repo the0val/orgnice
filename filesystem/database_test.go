@@ -119,10 +119,31 @@ func TestUseTasks(t *testing.T) {
 		fmt.Println("Should update task")
 		t.Fail()
 	}
-
 	err = user.StoreTask(Task{task.ID + 1, "Stored task", task.Project, false})
 	if err != nil {
 		fmt.Println("Should create new task with StoreTask")
+		t.Fail()
+	}
+
+	os.Remove("test.db")
+	user, _ = InitDb("test.db")
+
+	tasks, err := user.TasksInProject(0)
+	if err != nil {
+		t.Fail()
+	}
+	if len(tasks) != 0 {
+		t.Fail()
+	}
+	_, err = user.TasksInProject(100)
+	if err == nil {
+		fmt.Println("Unknown projectID should give error")
+		t.Fail()
+	}
+	for i := 0; i < 8; i++ {
+		user.NewTask("Name"+string(i), 0)
+	}
+	if tasks, err := user.TasksInProject(0); err != nil && len(tasks) == 0 {
 		t.Fail()
 	}
 }
