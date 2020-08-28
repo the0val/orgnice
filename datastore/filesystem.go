@@ -6,7 +6,8 @@ import (
 
 var orgniceRoot string
 
-func createFolder(path string) error {
+// CreateFolder creates a directory at specified path with proper permissions.
+func CreateFolder(path string) error {
 	err := os.Mkdir(path, os.ModeDir+os.ModePerm)
 	if err != nil {
 		fileInfo, e := os.Stat(path)
